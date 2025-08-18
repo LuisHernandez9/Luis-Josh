@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { fetchUnifiedEvents, type UnifiedEvent } from "./data/fetchEvents";
 
 type ViewMode = "events" | "holidays";
 type OrgType = "university" | "government" | "other";
@@ -134,8 +135,25 @@ function heatColor(level: number, max: number) {
 export default function EventPulseNC() {
   const [view, setView] = useState<ViewMode>("events");
   const [filters, setFilters] = useState<Filters>({ q: "", orgType: "all", type: "all", from: null, to: null });
-  const [events] = useState<EventItem[]>(() => generateMockEvents());
+  const [events, setEvents] = useState<EventItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await fetchUnifiedEvents();
+        setEvents(data);
+      } catch (e: any) {
+        setError(e?.message || "Failed to load events");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+  
   const filtered = useMemo(() => {
     return events.filter((e) => {
       if (view === "events" && e.eventType === "Holiday") return false;
