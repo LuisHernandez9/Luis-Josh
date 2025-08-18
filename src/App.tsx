@@ -439,7 +439,6 @@ function MapOverlay({ title, events, onClose }: { title: string; events: EventIt
     (async () => {
       try {
         const L = await import("leaflet");
-        await import("leaflet/dist/leaflet.css");
         // @ts-ignore
         const { Map, tileLayer, marker, icon } = L;
         setLeafletReady(true);
