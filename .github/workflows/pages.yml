@@ -1,37 +1,34 @@
-name: Deploy Vite site to GitHub Pages
+name: Deploy Vite to GitHub Pages
 
 on:
   push:
-    branches:
-      - luis_branch   # 👈 your working branch
+    branches: [ luis_branch ]   # deploy from your working branch
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 18
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build
-        run: npm run build
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v1
+          node-version: 20
+      - run: npm ci
+      - run: npm run build
+      # SPA fallback so refresh on deep links doesn't 404
+      - run: cp dist/index.html dist/404.html
+      # Use the new pages artifact action (NOT the deprecated upload-artifact v3)
+      - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: ./dist
 
   deploy:
     needs: build
@@ -40,6 +37,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v2
+      # Use the new deploy action
+      - id: deployment
+        uses: actions/deploy-pages@v4
