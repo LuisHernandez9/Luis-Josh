@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import { fetchUnifiedEvents, type EventItem } from "./data/fetchEvents";
 import { motion } from "framer-motion";
@@ -47,6 +47,7 @@ export default function EventPulseNC() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Load live events
   useEffect(() => {
     (async () => {
       try {
@@ -60,6 +61,17 @@ export default function EventPulseNC() {
         setLoading(false);
       }
     })();
+  }, []);
+
+  // QoL: ESC clears the active category filter
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setFilters((prev) => (prev.type !== "all" ? { ...prev, type: "all" } : prev));
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   const filtered = useMemo(() => {
@@ -158,14 +170,43 @@ export default function EventPulseNC() {
         {/* Left column */}
         <section className="col-span-12 lg:col-span-4">
           <Panel title="Categories">
+            {/* Back row: only visible when a category is active */}
+            {filters.type !== "all" && (
+              <div className="mb-3 flex items-center gap-2">
+                <button
+                  onClick={() => setFilters({ ...filters, type: "all" })}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-100"
+                  aria-label="Back to all categories"
+                  title="Back to all categories (Esc)"
+                >
+                  <span aria-hidden>←</span>
+                  <span>Back</span>
+                </button>
+                <span className="text-xs text-slate-600">
+                  Viewing: <span className="font-medium">{String(filters.type)}</span>
+                </span>
+                <button
+                  onClick={() => setFilters({ ...filters, type: "all" })}
+                  className="ml-auto text-xs text-indigo-600 hover:underline"
+                >
+                  Clear filter
+                </button>
+              </div>
+            )}
+
             <p className="text-sm text-slate-600 mb-3">Click a bubble to filter. Size shows frequency.</p>
+
             <BubblePanel
               bubbles={bubbleData}
               onBubbleClick={(t) => setFilters({ ...filters, type: t as any })}
               activeType={filters.type}
               mode={view}
             />
-            <div className="text-xs text-slate-500 mt-4">Tip: Right-click any heat cell to open the statewide map for that time.</div>
+
+            <div className="text-xs text-slate-500 mt-4">
+              Tip: Right-click any heat cell to open the statewide map for that time. Press <kbd>Esc</kbd> to clear the category.
+            </div>
+
             {loading && <div className="text-sm text-slate-500 mt-2">Loading live events…</div>}
             {error && <div className="text-sm text-rose-600 mt-2">Error: {error}</div>}
           </Panel>
