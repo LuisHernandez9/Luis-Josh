@@ -2,7 +2,7 @@ name: Deploy Vite to GitHub Pages
 
 on:
   push:
-    branches: [ luis_branch ]  # deploys from your working branch
+    branches: [ luis_branch ]
 
 permissions:
   contents: read
@@ -12,10 +12,6 @@ permissions:
 concurrency:
   group: "pages"
   cancel-in-progress: true
-
-env:
-  # If your app is NOT in the repo root, set this to the subfolder (e.g., app, web, frontend)
-  APP_DIR: .
 
 jobs:
   build:
@@ -29,20 +25,46 @@ jobs:
         with:
           node-version: 20
 
+      - name: Show repo layout (top level)
+        run: |
+          echo "PWD: $PWD"
+          ls -la
+
+      - name: Detect app directory (has package.json with vite build)
+        id: detect
+        shell: bash
+        run: |
+          set -e
+          CANDIDATES=$(find . -maxdepth 3 -type f -name package.json | sort)
+          echo "Found package.json candidates:"
+          echo "$CANDIDATES"
+          APP_DIR=""
+          for p in $CANDIDATES; do
+            d=$(dirname "$p")
+            echo "Checking $p"
+            if jq -e '.scripts.build? | contains("vite")' "$p" >/dev/null 2>&1 || \
+               jq -e '.devDependencies?."@vitejs/plugin-react"' "$p" >/dev/null 2>&1 || \
+               jq -e '.dependencies?."vite"' "$p" >/dev/null 2>&1; then
+              APP_DIR="$d"
+              break
+            fi
+          done
+          if [ -z "$APP_DIR" ]; then
+            echo "::error ::No Vite app detected. Ensure package.json exists and has a 'build' script using Vite."
+            exit 1
+          fi
+          echo "APP_DIR=$APP_DIR" | tee -a $GITHUB_OUTPUT
+          echo "Using APP_DIR=$APP_DIR"
+          echo "Contents of APP_DIR:"
+          ls -la "$APP_DIR"
+
       - name: Show Node/npm versions
         run: |
           node -v
           npm -v
 
-      - name: Verify package.json location
-        working-directory: ${{ env.APP_DIR }}
-        run: |
-          echo "Listing files in $PWD"
-          ls -la
-          test -f package.json || (echo "::error ::No package.json found in $PWD. If your app lives in a subfolder, set APP_DIR accordingly in the workflow." && exit 1)
-
       - name: Install dependencies (ci if lockfile, else install)
-        working-directory: ${{ env.APP_DIR }}
+        working-directory: ${{ steps.detect.outputs.APP_DIR }}
         run: |
           if [ -f package-lock.json ]; then
             npm ci
@@ -50,21 +72,28 @@ jobs:
             npm install
           fi
 
-      - name: Build
-        working-directory: ${{ env.APP_DIR }}
+      - name: Build (npm run build or fallback to vite)
+        working-directory: ${{ steps.detect.outputs.APP_DIR }}
         run: |
-          npm run build || npx vite build
+          if npm run | grep -q "^  build$"; then
+            npm run build
+          else
+            npx vite build
+          fi
 
       - name: Ensure dist exists & add SPA fallback
-        working-directory: ${{ env.APP_DIR }}
+        working-directory: ${{ steps.detect.outputs.APP_DIR }}
         run: |
-          test -d dist || (echo "::error ::dist folder not found after build. Check your build script/working directory." && exit 1)
+          if [ ! -d dist ]; then
+            echo "::error ::Build succeeded but 'dist' was not found. Check your build output config."
+            exit 1
+          fi
           cp dist/index.html dist/404.html
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ${{ env.APP_DIR }}/dist
+          path: ${{ steps.detect.outputs.APP_DIR }}/dist
 
   deploy:
     needs: build
