@@ -25,7 +25,7 @@ jobs:
         with:
           node-version: 20
 
-      # Optional: delete lockfile to avoid npm ci trying to enforce it
+      # If a stale lockfile exists but you edit on GitHub, remove it so npm install resolves fresh
       - name: Remove lockfile if present
         run: |
           if [ -f package-lock.json ]; then
@@ -33,12 +33,18 @@ jobs:
             rm -f package-lock.json
           fi
 
-      - name: Install dependencies (npm install)
+      - name: Install dependencies
         run: npm install
 
-      - name: Build
+      # 🔧 Call Vite via Node to avoid executable permission issues
+      - name: Build (via Node entry)
         run: |
-          npm run build || npx vite build
+          if [ -f ./node_modules/vite/bin/vite.js ]; then
+            node ./node_modules/vite/bin/vite.js build
+          else
+            # Fallback if vite wasn't installed for some reason
+            npx --yes vite build
+          fi
 
       - name: Add SPA fallback (404.html)
         run: cp dist/index.html dist/404.html
