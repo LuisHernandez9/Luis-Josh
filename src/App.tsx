@@ -51,19 +51,63 @@ const SCHOOL_STYLES: Record<
   other:{ bg: "bg-slate-50",  border: "border-slate-200",  text: "text-slate-800",  pillBg: "bg-slate-100",  pillText: "text-slate-800" },
 };
 
-// --- Map helpers ---
-function Recenter({ center }: { center: [number, number] }) {
+// --- Known campus/venue coords (fallbacks if events lack lat/lng) ---
+type LatLng = [number, number];
+const KNOWN_PLACES: Array<{ test: RegExp; coords: LatLng }> = [
+  // UNC – Chapel Hill + a couple common venues
+  { test: /(unc|chapel hill|ackland art museum|ackland)/i, coords: [35.9098, -79.0500] },
+  { test: /(wilson (street|library)|polk place|the pit)/i, coords: [35.9106, -79.0479] },
+
+  // NC State (main campus) + venues
+  { test: /(nc ?state|north carolina state|carmichael|wellness and recreation center)/i, coords: [35.7839, -78.6705] },
+  { test: /(talley student union|talley)/i, coords: [35.7833, -78.6716] },
+  { test: /(gregg museum of art)/i, coords: [35.7977, -78.6649] },
+
+  // Duke
+  { test: /(duke)/i, coords: [36.0014, -78.9382] },
+];
+
+function coordsFromName(nameish: string | undefined | null): LatLng | null {
+  if (!nameish) return null;
+  for (const k of KNOWN_PLACES) if (k.test.test(nameish)) return k.coords;
+  return null;
+}
+
+function parseNum(n: any): number | null {
+  if (typeof n === "number" && Number.isFinite(n)) return n;
+  if (typeof n === "string") {
+    const v = parseFloat(n);
+    if (Number.isFinite(v)) return v;
+  }
+  return null;
+}
+
+function resolveLatLngForEvent(e?: EventItem | null): LatLng | null {
+  if (!e) return null;
+  const lat = parseNum(e.loc?.lat);
+  const lng = parseNum(e.loc?.lng);
+  if (lat != null && lng != null) return [lat, lng];
+
+  // Try by location/org names
+  const byLoc = coordsFromName(e.loc?.name);
+  if (byLoc) return byLoc;
+  const byOrg = coordsFromName(e.org?.name);
+  if (byOrg) return byOrg;
+
+  // Fallback campus centers
+  const key = schoolKeyFromEvent(e);
+  if (key === "unc") return [35.9050, -79.0469];
+  if (key === "ncsu") return [35.7847, -78.6821];
+  if (key === "duke") return [36.0014, -78.9382];
+  return null;
+}
+
+// --- Map recenter helper ---
+function Recenter({ center }: { center: LatLng }) {
   const map = useMap();
   useEffect(() => {
     map.setView(center, map.getZoom(), { animate: true });
   }, [center, map]);
-  return null;
-}
-function getEventLatLng(e?: EventItem | null): [number, number] | null {
-  if (!e?.loc) return null;
-  const lat = typeof e.loc.lat === "string" ? parseFloat(e.loc.lat) : e.loc.lat;
-  const lng = typeof e.loc.lng === "string" ? parseFloat(e.loc.lng) : e.loc.lng;
-  if (Number.isFinite(lat) && Number.isFinite(lng)) return [lat as number, lng as number];
   return null;
 }
 
@@ -95,11 +139,10 @@ export default function EventPulseNC() {
     })();
   }, []);
 
+  // ESC clears category filter
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        setFilters((prev) => (prev.type !== "all" ? { ...prev, type: "all" } : prev));
-      }
+      if (e.key === "Escape") setFilters((p) => (p.type !== "all" ? { ...p, type: "all" } : p));
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -247,16 +290,14 @@ export default function EventPulseNC() {
             <HeatMap grid={heat.grid as number[][]} max={heat.max as number} onCellRightClick={onCellContextMenu} />
             <div className="mt-3 text-xs text-slate-600 flex items-center justify-between">
               <span>Hover to see counts. Right-click a cell for map.</span>
-              <small>{filtered.length} item(s) after filters</small>
+              <small>{filtered.length} item(s) after filters}</small>
             </div>
           </Panel>
         </section>
       </main>
 
       {/* Map Overlay */}
-      {mapOpen && (
-        <MapOverlay title={`NC Map — ${mapTitle}`} events={mapEvents} onClose={() => setMapOpen(false)} />
-      )}
+      {mapOpen && <MapOverlay title={`NC Map — ${mapTitle}`} events={mapEvents} onClose={() => setMapOpen(false)} />}
 
       {/* Footer */}
       <footer className="border-t border-slate-200 py-4 text-center text-xs text-slate-600">
@@ -407,19 +448,20 @@ function HeatMap({
   );
 }
 
-// ---------- Map overlay with fixed hover-to-pin ----------
+// ---------- Map overlay with hover-to-pin ----------
 function MapOverlay({ title, events, onClose }: { title: string; events: EventItem[]; onClose: () => void }) {
-  const FALLBACK: [number, number] = [35.5, -79.0];
-  const firstWithCoords = events.find((e) => getEventLatLng(e));
-  const initial = getEventLatLng(firstWithCoords) ?? FALLBACK;
+  const FALLBACK: LatLng = [35.5, -79.0];
 
-  const [pin, setPin] = useState<[number, number]>(initial);
-  const [activeEvent, setActiveEvent] = useState<EventItem | null>(firstWithCoords ?? null);
+  const firstCoordsEvent = events.find((e) => resolveLatLngForEvent(e));
+  const initial = resolveLatLngForEvent(firstCoordsEvent) ?? FALLBACK;
+
+  const [pin, setPin] = useState<LatLng>(initial);
+  const [activeEvent, setActiveEvent] = useState<EventItem | null>(firstCoordsEvent ?? null);
 
   const handleHover = (e: EventItem | null) => {
-    const coords = getEventLatLng(e);
-    if (coords) {
-      setPin(coords);
+    const c = resolveLatLngForEvent(e);
+    if (c) {
+      setPin(c);
       setActiveEvent(e);
     }
   };
@@ -440,7 +482,8 @@ function MapOverlay({ title, events, onClose }: { title: string; events: EventIt
             <MapContainer center={pin} zoom={7} className="h-full w-full">
               <TileLayer attribution="© OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
               <Recenter center={pin} />
-              <Marker position={pin}>
+              {/* Key forces marker re-mount when coords change */}
+              <Marker key={`${pin[0].toFixed(6)}-${pin[1].toFixed(6)}`} position={pin}>
                 <Popup>
                   {activeEvent ? (
                     <>
@@ -479,12 +522,15 @@ function EventList({ events, onHover }: { events: EventItem[]; onHover: (e: Even
         return (
           <li
             key={e.id}
-            className={`rounded-xl border p-3 ${s.bg} ${s.border} transition transform hover:scale-[1.01] hover:ring-2 hover:ring-slate-300 cursor-pointer`}
+            tabIndex={0}
             onMouseEnter={() => onHover(e)}
             onMouseLeave={() => onHover(null)}
             onFocus={() => onHover(e)}
             onBlur={() => onHover(null)}
-            tabIndex={0}
+            className={`rounded-xl border p-3 ${s.bg} ${s.border}
+              transform transition duration-150 ease-out
+              hover:scale-105 hover:ring-2 hover:ring-slate-300 hover:shadow-md
+              focus-visible:scale-105 focus-visible:ring-2 focus-visible:ring-slate-300 cursor-pointer`}
           >
             <div className={`text-sm font-medium ${s.text}`}>{e.title}</div>
             <div className="mt-1 flex items-center gap-2 flex-wrap">
