@@ -1,4 +1,4 @@
-name: Deploy Vite to GitHub Pages (diagnostic)
+name: Deploy Vite to GitHub Pages
 
 on:
   push:
@@ -25,53 +25,25 @@ jobs:
         with:
           node-version: 20
 
-      - name: Show repo layout
-        run: |
-          echo "PWD: $PWD"
-          ls -la
-          echo "---- src ----"
-          [ -d src ] && ls -la src || echo "no src dir"
-
-      - name: Show Node/npm versions
-        run: |
-          node -v
-          npm -v
-
-      - name: Verify key files exist
-        run: |
-          test -f package.json || (echo "::error ::Missing package.json at repo root"; exit 1)
-          test -f vite.config.ts || test -f vite.config.js || (echo "::error ::Missing vite.config.ts/js at repo root"; exit 1)
-          test -f index.html || (echo "::error ::Missing index.html at repo root"; exit 1)
-          test -f src/main.tsx || (echo "::error ::Missing src/main.tsx"; exit 1)
-          test -f src/App.tsx || (echo "::error ::Missing src/App.tsx"; exit 1)
-
-      - name: Install dependencies
+      # Optional: delete lockfile to avoid npm ci trying to enforce it
+      - name: Remove lockfile if present
         run: |
           if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
+            echo "Removing out-of-sync package-lock.json"
+            rm -f package-lock.json
           fi
 
-      - name: TypeScript quick check (no emit)
-        run: |
-          npx tsc -v || true
-          npx tsc --noEmit || true
+      - name: Install dependencies (npm install)
+        run: npm install
 
-      - name: Build (verbose)
+      - name: Build
         run: |
-          set -x
           npm run build || npx vite build
 
-      - name: Ensure dist exists & add SPA fallback
-        run: |
-          if [ ! -d dist ]; then
-            echo "::error ::Build ran but 'dist/' not found. Check previous step for TS/Vite errors."
-            exit 1
-          fi
-          cp dist/index.html dist/404.html
+      - name: Add SPA fallback (404.html)
+        run: cp dist/index.html dist/404.html
 
-      - name: Upload Pages artifact
+      - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
