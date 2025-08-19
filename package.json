@@ -9,35 +9,19 @@
     "preview": "vite preview --port 5173"
   },
   "dependencies": {
-    "framer-motion": "^11.0.0",
-    "leaflet": "^1.9.4",
-    "lucide-react": "^0.446.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-leaflet": "^4.2.1"
+    "framer-motion": "11.0.0",
+    "leaflet": "1.9.4",
+    "lucide-react": "0.446.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-leaflet": "4.2.1"
   },
   "devDependencies": {
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.1",
-    "typescript": "^5.5.4",
-    "vite": "^5.3.4",
-    "rollup": "4.17.2"
-  },
-  "overrides": {
-    "rollup": "4.17.2",
-    "@rollup/rollup-android-arm-eabi": "npm:rollup@4.17.2",
-    "@rollup/rollup-android-arm64": "npm:rollup@4.17.2",
-    "@rollup/rollup-darwin-arm64": "npm:rollup@4.17.2",
-    "@rollup/rollup-darwin-x64": "npm:rollup@4.17.2",
-    "@rollup/rollup-linux-arm-gnueabihf": "npm:rollup@4.17.2",
-    "@rollup/rollup-linux-arm64-gnu": "npm:rollup@4.17.2",
-    "@rollup/rollup-linux-arm64-musl": "npm:rollup@4.17.2",
-    "@rollup/rollup-linux-riscv64-gnu": "npm:rollup@4.17.2",
-    "@rollup/rollup-linux-x64-gnu": "npm:rollup@4.17.2",
-    "@rollup/rollup-linux-x64-musl": "npm:rollup@4.17.2",
-    "@rollup/rollup-win32-arm64-msvc": "npm:rollup@4.17.2",
-    "@rollup/rollup-win32-ia32-msvc": "npm:rollup@4.17.2",
-    "@rollup/rollup-win32-x64-msvc": "npm:rollup@4.17.2"
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "@vitejs/plugin-react": "3.1.0",
+    "rollup": "3.29.4",
+    "typescript": "5.5.4",
+    "vite": "4.5.3"
   }
 }
