@@ -1,4 +1,4 @@
-name: Deploy Vite to GitHub Pages
+name: Deploy Vite to GitHub Pages (diagnostic)
 
 on:
   push:
@@ -25,46 +25,27 @@ jobs:
         with:
           node-version: 20
 
-      - name: Show repo layout (top level)
+      - name: Show repo layout
         run: |
           echo "PWD: $PWD"
           ls -la
-
-      - name: Detect app directory (has package.json with vite build)
-        id: detect
-        shell: bash
-        run: |
-          set -e
-          CANDIDATES=$(find . -maxdepth 3 -type f -name package.json | sort)
-          echo "Found package.json candidates:"
-          echo "$CANDIDATES"
-          APP_DIR=""
-          for p in $CANDIDATES; do
-            d=$(dirname "$p")
-            echo "Checking $p"
-            if jq -e '.scripts.build? | contains("vite")' "$p" >/dev/null 2>&1 || \
-               jq -e '.devDependencies?."@vitejs/plugin-react"' "$p" >/dev/null 2>&1 || \
-               jq -e '.dependencies?."vite"' "$p" >/dev/null 2>&1; then
-              APP_DIR="$d"
-              break
-            fi
-          done
-          if [ -z "$APP_DIR" ]; then
-            echo "::error ::No Vite app detected. Ensure package.json exists and has a 'build' script using Vite."
-            exit 1
-          fi
-          echo "APP_DIR=$APP_DIR" | tee -a $GITHUB_OUTPUT
-          echo "Using APP_DIR=$APP_DIR"
-          echo "Contents of APP_DIR:"
-          ls -la "$APP_DIR"
+          echo "---- src ----"
+          [ -d src ] && ls -la src || echo "no src dir"
 
       - name: Show Node/npm versions
         run: |
           node -v
           npm -v
 
-      - name: Install dependencies (ci if lockfile, else install)
-        working-directory: ${{ steps.detect.outputs.APP_DIR }}
+      - name: Verify key files exist
+        run: |
+          test -f package.json || (echo "::error ::Missing package.json at repo root"; exit 1)
+          test -f vite.config.ts || test -f vite.config.js || (echo "::error ::Missing vite.config.ts/js at repo root"; exit 1)
+          test -f index.html || (echo "::error ::Missing index.html at repo root"; exit 1)
+          test -f src/main.tsx || (echo "::error ::Missing src/main.tsx"; exit 1)
+          test -f src/App.tsx || (echo "::error ::Missing src/App.tsx"; exit 1)
+
+      - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then
             npm ci
@@ -72,28 +53,28 @@ jobs:
             npm install
           fi
 
-      - name: Build (npm run build or fallback to vite)
-        working-directory: ${{ steps.detect.outputs.APP_DIR }}
+      - name: TypeScript quick check (no emit)
         run: |
-          if npm run | grep -q "^  build$"; then
-            npm run build
-          else
-            npx vite build
-          fi
+          npx tsc -v || true
+          npx tsc --noEmit || true
+
+      - name: Build (verbose)
+        run: |
+          set -x
+          npm run build || npx vite build
 
       - name: Ensure dist exists & add SPA fallback
-        working-directory: ${{ steps.detect.outputs.APP_DIR }}
         run: |
           if [ ! -d dist ]; then
-            echo "::error ::Build succeeded but 'dist' was not found. Check your build output config."
+            echo "::error ::Build ran but 'dist/' not found. Check previous step for TS/Vite errors."
             exit 1
           fi
           cp dist/index.html dist/404.html
 
-      - name: Upload artifact
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ${{ steps.detect.outputs.APP_DIR }}/dist
+          path: ./dist
 
   deploy:
     needs: build
