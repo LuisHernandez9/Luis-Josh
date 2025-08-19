@@ -2,7 +2,7 @@ name: Deploy Vite to GitHub Pages
 
 on:
   push:
-    branches: [ luis_branch ]   # deploy from your working branch
+    branches: [ luis_branch ]  # ← deploys whenever you push to luis_branch
 
 permissions:
   contents: read
@@ -21,11 +21,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm ci
+      - run: npm install
       - run: npm run build
       # SPA fallback so refresh on deep links doesn't 404
       - run: cp dist/index.html dist/404.html
-      # Use the new pages artifact action (NOT the deprecated upload-artifact v3)
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
@@ -37,6 +36,5 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      # Use the new deploy action
       - id: deployment
         uses: actions/deploy-pages@v4
