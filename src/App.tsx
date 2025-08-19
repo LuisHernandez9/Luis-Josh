@@ -54,24 +54,13 @@ const SCHOOL_STYLES: Record<
 // --- Known campus/venue coords (fallbacks if events lack lat/lng) ---
 type LatLng = [number, number];
 const KNOWN_PLACES: Array<{ test: RegExp; coords: LatLng }> = [
-  // UNC – Chapel Hill + a couple common venues
   { test: /(unc|chapel hill|ackland art museum|ackland)/i, coords: [35.9098, -79.0500] },
   { test: /(wilson (street|library)|polk place|the pit)/i, coords: [35.9106, -79.0479] },
-
-  // NC State (main campus) + venues
   { test: /(nc ?state|north carolina state|carmichael|wellness and recreation center)/i, coords: [35.7839, -78.6705] },
   { test: /(talley student union|talley)/i, coords: [35.7833, -78.6716] },
   { test: /(gregg museum of art)/i, coords: [35.7977, -78.6649] },
-
-  // Duke
   { test: /(duke)/i, coords: [36.0014, -78.9382] },
 ];
-
-function coordsFromName(nameish: string | undefined | null): LatLng | null {
-  if (!nameish) return null;
-  for (const k of KNOWN_PLACES) if (k.test.test(nameish)) return k.coords;
-  return null;
-}
 
 function parseNum(n: any): number | null {
   if (typeof n === "number" && Number.isFinite(n)) return n;
@@ -81,20 +70,20 @@ function parseNum(n: any): number | null {
   }
   return null;
 }
-
+function coordsFromName(nameish: string | undefined | null): LatLng | null {
+  if (!nameish) return null;
+  for (const k of KNOWN_PLACES) if (k.test.test(nameish)) return k.coords;
+  return null;
+}
 function resolveLatLngForEvent(e?: EventItem | null): LatLng | null {
   if (!e) return null;
   const lat = parseNum(e.loc?.lat);
   const lng = parseNum(e.loc?.lng);
   if (lat != null && lng != null) return [lat, lng];
-
-  // Try by location/org names
   const byLoc = coordsFromName(e.loc?.name);
   if (byLoc) return byLoc;
   const byOrg = coordsFromName(e.org?.name);
   if (byOrg) return byOrg;
-
-  // Fallback campus centers
   const key = schoolKeyFromEvent(e);
   if (key === "unc") return [35.9050, -79.0469];
   if (key === "ncsu") return [35.7847, -78.6821];
@@ -290,7 +279,7 @@ export default function EventPulseNC() {
             <HeatMap grid={heat.grid as number[][]} max={heat.max as number} onCellRightClick={onCellContextMenu} />
             <div className="mt-3 text-xs text-slate-600 flex items-center justify-between">
               <span>Hover to see counts. Right-click a cell for map.</span>
-              <small>{filtered.length} item(s) after filters}</small>
+              <small>{filtered.length} item(s) after filters</small>
             </div>
           </Panel>
         </section>
@@ -482,7 +471,6 @@ function MapOverlay({ title, events, onClose }: { title: string; events: EventIt
             <MapContainer center={pin} zoom={7} className="h-full w-full">
               <TileLayer attribution="© OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
               <Recenter center={pin} />
-              {/* Key forces marker re-mount when coords change */}
               <Marker key={`${pin[0].toFixed(6)}-${pin[1].toFixed(6)}`} position={pin}>
                 <Popup>
                   {activeEvent ? (
