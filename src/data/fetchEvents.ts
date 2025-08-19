@@ -16,22 +16,19 @@ export type EventItem = {
   registration?: string;
 };
 
-// --- Sources ---
-// UNC & NCSU = Localist JSON API
+// Sources
 const UNC_API  = "https://calendar.unc.edu/api/2/events?days=30&pp=100";
 const NCSU_API = "https://calendar.ncsu.edu/api/2/events?days=30&pp=100";
-
-// Duke = Events JSON (30-day window)
 const DUKE_API = "https://calendar.duke.edu/events/index.json?timeframe=next30days";
 
-// Generic fetch helper
+// Fetch helper
 async function getJSON<T>(url: string): Promise<T> {
   const res = await fetch(url, { mode: "cors", cache: "no-store" });
   if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
   return res.json();
 }
 
-// --- Mappers ---
+// Mappers
 function mapLocalist(domain: "unc" | "ncsu", raw: any): EventItem {
   const e = raw?.event ?? raw;
   const inst = e?.event_instances?.[0]?.event_instance ?? {};
@@ -50,7 +47,7 @@ function mapLocalist(domain: "unc" | "ncsu", raw: any): EventItem {
     org: { id: domain, name: orgName, type: "university", website: orgSite },
     eventType: e?.event_types?.[0]?.name || e?.type || "Other",
     sourceUrl: e.localist_url || e.url,
-    loc: { name: e.location_name || e.venue_name || e?.venue?.name },
+    loc: { name: e.location_name || e.venue_name || e?.venue?.name }
   };
 }
 
@@ -67,16 +64,16 @@ function mapDuke(raw: any): EventItem {
     org: { id: "duke", name: "Duke University", type: "university", website: "https://www.duke.edu" },
     eventType: raw?.type || (Array.isArray(raw?.categories) ? raw.categories[0] : "Other"),
     sourceUrl: raw?.url || raw?.link,
-    loc: { name: raw?.location || raw?.place },
+    loc: { name: raw?.location || raw?.place }
   };
 }
 
-// --- Orchestrator ---
+// Orchestrator
 export async function fetchUnifiedEvents(): Promise<EventItem[]> {
   const [unc, ncsu, duke] = await Promise.allSettled([
     getJSON<any>(UNC_API),
     getJSON<any>(NCSU_API),
-    getJSON<any>(DUKE_API),
+    getJSON<any>(DUKE_API)
   ]);
 
   const out: EventItem[] = [];
