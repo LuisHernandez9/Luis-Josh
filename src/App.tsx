@@ -125,7 +125,7 @@ export default function EventPulseNC() {
     openMapForSlot(dayIdx, hour);
   };
 
-  // NEW: clicking a bubble toggles the filter (on -> off)
+  // Clicking a bubble toggles the filter (on -> off)
   const handleBubbleClick = (t: string) => {
     setFilters((prev) => ({ ...prev, type: prev.type === t ? "all" : (t as any) }));
   };
@@ -175,31 +175,9 @@ export default function EventPulseNC() {
         {/* Left column */}
         <section className="col-span-12 lg:col-span-4">
           <Panel title="Categories">
-            {/* Back row: visible when a category is selected */}
-            {filters.type !== "all" && (
-              <div className="mb-3 flex items-center gap-2">
-                <button
-                  onClick={() => setFilters({ ...filters, type: "all" })}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-100"
-                  aria-label="Back to all categories"
-                  title="Back to all categories (Esc)"
-                >
-                  <span aria-hidden>←</span>
-                  <span>Back</span>
-                </button>
-                <span className="text-xs text-slate-600">
-                  Viewing: <span className="font-medium">{String(filters.type)}</span>
-                </span>
-                <button
-                  onClick={() => setFilters({ ...filters, type: "all" })}
-                  className="ml-auto text-xs text-indigo-600 hover:underline"
-                >
-                  Clear filter
-                </button>
-              </div>
-            )}
-
-            <p className="text-sm text-slate-600 mb-3">Click a bubble to filter. Click again to clear. Size shows frequency.</p>
+            <p className="text-sm text-slate-600 mb-3">
+              Click a bubble to filter. <span className="font-medium">Click again to clear</span>. Size shows frequency.
+            </p>
 
             <BubblePanel
               bubbles={bubbleData}
