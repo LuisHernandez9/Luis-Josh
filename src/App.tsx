@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { fetchUnifiedEvents, type EventItem } from "./data/fetchEvents";
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
@@ -10,7 +10,7 @@ type OrgType = "university" | "government" | "other";
 const EVENT_TYPES: string[] = ["Academic", "Government", "Conference", "Workshop", "Holiday", "Other"];
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-// Responsive helpers
+// ---------- Helpers ----------
 function useIsSmallScreen() {
   const [isSmall, setIsSmall] = useState(() => window.innerWidth < 640);
   useEffect(() => {
@@ -21,7 +21,6 @@ function useIsSmallScreen() {
   return isSmall;
 }
 
-// Utils
 function heatColor(level: number, max: number) {
   if (max <= 0) return "#f3f4f6";
   const t = Math.max(0, Math.min(1, level / max));
@@ -34,13 +33,41 @@ function fmtDateTime(d: Date) {
   return d.toLocaleString([], { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
-// App
+// --- School color + matching ---
+type SchoolKey = "unc" | "ncsu" | "duke" | "other";
+function schoolKeyFromEvent(e: EventItem): SchoolKey {
+  const hay = `${e.org?.name ?? ""} ${e.loc?.name ?? ""}`.toLowerCase();
+  if (hay.includes("unc") || hay.includes("chapel hill")) return "unc";
+  if (hay.includes("nc state") || hay.includes("north carolina state")) return "ncsu";
+  if (hay.includes("duke")) return "duke";
+  return "other";
+}
+const SCHOOL_STYLES: Record<
+  SchoolKey,
+  { bg: string; border: string; text: string; pillBg: string; pillText: string }
+> = {
+  unc:  { bg: "bg-sky-50",    border: "border-sky-200",    text: "text-sky-800",    pillBg: "bg-sky-100",    pillText: "text-sky-800" },
+  ncsu: { bg: "bg-rose-50",   border: "border-rose-200",   text: "text-rose-800",   pillBg: "bg-rose-100",   pillText: "text-rose-800" },
+  duke: { bg: "bg-indigo-50", border: "border-indigo-200", text: "text-indigo-800", pillBg: "bg-indigo-100", pillText: "text-indigo-800" },
+  other:{ bg: "bg-slate-50",  border: "border-slate-200",  text: "text-slate-800",  pillBg: "bg-slate-100",  pillText: "text-slate-800" },
+};
+
+// --- Map recenter helper ---
+function Recenter({ center }: { center: [number, number] }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, map.getZoom(), { animate: true });
+  }, [center, map]);
+  return null;
+}
+
+// ---------- App ----------
 export default function EventPulseNC() {
   const [view, setView] = useState<ViewMode>("events");
   const [filters, setFilters] = useState<{ q: string; orgType: OrgType | "all"; type: string | "all" }>({
     q: "",
     orgType: "all",
-    type: "all"
+    type: "all",
   });
 
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -107,7 +134,7 @@ export default function EventPulseNC() {
     const map = new Map<string, number>();
     filtered.forEach((e) => map.set(e.eventType || "Other", (map.get(e.eventType || "Other") || 0) + 1));
     const arr = EVENT_TYPES.map((t) => ({ type: t, count: map.get(t) || 0 }));
-    return arr.filter((b) => (view === "events" ? (b.type !== "Holiday" && b.count > 0) : b.type === "Holiday"));
+    return arr.filter((b) => (view === "events" ? b.type !== "Holiday" && b.count > 0 : b.type === "Holiday"));
   }, [filtered, view]);
 
   // Map overlay state
@@ -125,7 +152,6 @@ export default function EventPulseNC() {
     openMapForSlot(dayIdx, hour);
   };
 
-  // Clicking a bubble toggles the filter (on -> off)
   const handleBubbleClick = (t: string) => {
     setFilters((prev) => ({ ...prev, type: prev.type === t ? "all" : (t as any) }));
   };
@@ -156,7 +182,7 @@ export default function EventPulseNC() {
                 { label: "All orgs", value: "all" },
                 { label: "Universities", value: "university" },
                 { label: "Government", value: "government" },
-                { label: "Other", value: "other" }
+                { label: "Other", value: "other" },
               ]}
               onChange={(v) => setFilters({ ...filters, orgType: v as any })}
             />
@@ -179,12 +205,7 @@ export default function EventPulseNC() {
               Click a bubble to filter. <span className="font-medium">Click again to clear</span>. Size shows frequency.
             </p>
 
-            <BubblePanel
-              bubbles={bubbleData}
-              onBubbleClick={handleBubbleClick}
-              activeType={filters.type}
-              mode={view}
-            />
+            <BubblePanel bubbles={bubbleData} onBubbleClick={handleBubbleClick} activeType={filters.type} mode={view} />
 
             <div className="text-xs text-slate-500 mt-4">
               Tip: Right-click any heat cell to open the statewide map for that time. Press <kbd>Esc</kbd> to clear the category.
@@ -207,7 +228,9 @@ export default function EventPulseNC() {
                 .map((e) => (
                   <li key={e.id} className="py-3">
                     <div className="text-sm font-medium">{e.title}</div>
-                    <div className="text-xs text-slate-600">{fmtDateTime(e.start)} · {e.loc?.name ?? e.org?.name}</div>
+                    <div className="text-xs text-slate-600">
+                      {fmtDateTime(e.start)} · {e.loc?.name ?? e.org?.name}
+                    </div>
                   </li>
                 ))}
             </ul>
@@ -227,7 +250,13 @@ export default function EventPulseNC() {
       </main>
 
       {/* Map Overlay */}
-      {mapOpen && <MapOverlay title={`NC Map — ${mapTitle}`} events={mapEvents} onClose={() => setMapOpen(false)} />}
+      {mapOpen && (
+        <MapOverlay
+          title={`NC Map — ${mapTitle}`}
+          events={mapEvents}
+          onClose={() => setMapOpen(false)}
+        />
+      )}
 
       {/* Footer */}
       <footer className="border-t border-slate-200 py-4 text-center text-xs text-slate-600">
@@ -237,7 +266,7 @@ export default function EventPulseNC() {
   );
 }
 
-// UI bits
+// ---------- UI bits ----------
 function Logo() {
   return (
     <div className="flex items-center gap-2">
@@ -248,15 +277,26 @@ function Logo() {
 }
 
 function Segmented({
-  value, onChange, options
-}: { value: string; onChange: (v: string) => void; options: { label: string; value: string }[] }) {
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { label: string; value: string }[];
+}) {
   return (
     <div role="tablist" aria-label="View toggle" className="flex rounded-xl border border-slate-300 p-1 text-sm bg-white shadow-sm">
       {options.map((o) => {
         const active = o.value === value;
         return (
-          <button key={o.value} role="tab" aria-selected={active} onClick={() => onChange(o.value)}
-            className={`px-3 py-1.5 rounded-lg ${active ? "bg-indigo-600 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
+          <button
+            key={o.value}
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(o.value)}
+            className={`px-3 py-1.5 rounded-lg ${active ? "bg-indigo-600 text-white" : "text-slate-700 hover:bg-slate-100"}`}
+          >
             {o.label}
           </button>
         );
@@ -266,8 +306,16 @@ function Segmented({
 }
 
 function Select({
-  label, value, options, onChange
-}: { label: string; value: string; options: { label: string; value: string }[]; onChange: (v: string) => void }) {
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: { label: string; value: string }[];
+  onChange: (v: string) => void;
+}) {
   return (
     <label className="inline-flex items-center gap-2 text-sm">
       <span className="sr-only">{label}</span>
@@ -276,7 +324,11 @@ function Select({
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
-        {options.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
       </select>
     </label>
   );
@@ -294,7 +346,10 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 }
 
 function BubblePanel({
-  bubbles, onBubbleClick, activeType, mode
+  bubbles,
+  onBubbleClick,
+  activeType,
+  mode,
 }: {
   bubbles: { type: string; count: number }[];
   onBubbleClick: (t: string) => void;
@@ -327,7 +382,7 @@ function BubblePanel({
                 baseColor,
                 "flex flex-col items-center justify-center",
                 "hover:shadow transition-transform duration-200 ease-out",
-                active ? "ring-2 ring-offset-2 ring-indigo-500" : ""
+                active ? "ring-2 ring-offset-2 ring-indigo-500" : "",
               ].join(" ")}
               style={{ width: CELL, height: CELL, transform: `scale(${scale})` }}
               whileHover={{ scale: scale * 1.04 }}
@@ -344,8 +399,14 @@ function BubblePanel({
 }
 
 function HeatMap({
-  grid, max, onCellRightClick
-}: { grid: number[][]; max: number; onCellRightClick: (e: React.MouseEvent, dayIdx: number, hour: number) => void }) {
+  grid,
+  max,
+  onCellRightClick,
+}: {
+  grid: number[][];
+  max: number;
+  onCellRightClick: (e: React.MouseEvent, dayIdx: number, hour: number) => void;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full border-separate border-spacing-1">
@@ -353,7 +414,9 @@ function HeatMap({
           <tr>
             <th className="w-12 text-left text-xs text-slate-500">&nbsp;</th>
             {Array.from({ length: 24 }).map((_, h) => (
-              <th key={h} className="text-[10px] text-slate-500 font-normal text-center px-1">{h}</th>
+              <th key={h} className="text-[10px] text-slate-500 font-normal text-center px-1">
+                {h}
+              </th>
             ))}
           </tr>
         </thead>
@@ -379,7 +442,26 @@ function HeatMap({
   );
 }
 
+// ---------- Map overlay with hover-to-pin ----------
 function MapOverlay({ title, events, onClose }: { title: string; events: EventItem[]; onClose: () => void }) {
+  // Default map center (NC)
+  const FALLBACK: [number, number] = [35.5, -79.0];
+
+  // Pick a sensible initial pin: first event with coords or fallback
+  const firstWithLoc = events.find((e) => e.loc?.lat != null && e.loc?.lng != null);
+  const initial: [number, number] =
+    firstWithLoc ? [firstWithLoc.loc!.lat as number, firstWithLoc.loc!.lng as number] : FALLBACK;
+
+  const [pin, setPin] = useState<[number, number]>(initial);
+  const [activeEvent, setActiveEvent] = useState<EventItem | null>(firstWithLoc ?? null);
+
+  const handleHover = (e: EventItem | null) => {
+    if (e?.loc?.lat != null && e?.loc?.lng != null) {
+      setPin([e.loc.lat, e.loc.lng]);
+      setActiveEvent(e);
+    }
+  };
+
   return (
     <div role="dialog" aria-modal className="fixed inset-0 z-50 flex">
       <div className="absolute inset-0 bg-slate-900/60" onClick={onClose} />
@@ -393,22 +475,29 @@ function MapOverlay({ title, events, onClose }: { title: string; events: EventIt
 
         <div className="grid grid-cols-12 gap-0 flex-1">
           <div className="col-span-12 md:col-span-8 h-full">
-            <MapContainer center={[35.5, -79.0]} zoom={7} className="h-full w-full">
+            <MapContainer center={pin} zoom={7} className="h-full w-full">
               <TileLayer attribution="© OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-              {events.map((e) => (
-                <Marker key={e.id} position={[e.loc?.lat ?? 35.5, e.loc?.lng ?? -79.0]}>
-                  <Popup>
-                    <div className="text-sm font-medium">{e.title}</div>
-                    <div className="text-xs text-slate-600">{fmtDateTime(e.start)} · {e.loc?.name ?? e.org?.name ?? ""}</div>
-                  </Popup>
-                </Marker>
-              ))}
+              <Recenter center={pin} />
+              <Marker position={pin}>
+                <Popup>
+                  {activeEvent ? (
+                    <>
+                      <div className="text-sm font-medium">{activeEvent.title}</div>
+                      <div className="text-xs text-slate-600">
+                        {fmtDateTime(activeEvent.start)} · {activeEvent.loc?.name ?? activeEvent.org?.name ?? ""}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-xs">Hover an event to move the pin</div>
+                  )}
+                </Popup>
+              </Marker>
             </MapContainer>
           </div>
           <div className="col-span-12 md:col-span-4 border-l border-slate-200 h-full overflow-auto">
             <div className="p-4">
               <h4 className="text-xs font-semibold text-slate-700 mb-2">Events in slot</h4>
-              <EventList events={events} />
+              <EventList events={events} onHover={handleHover} />
             </div>
           </div>
         </div>
@@ -417,18 +506,39 @@ function MapOverlay({ title, events, onClose }: { title: string; events: EventIt
   );
 }
 
-function EventList({ events }: { events: EventItem[] }) {
+// ---------- Color-coded list + hover wiring ----------
+function EventList({ events, onHover }: { events: EventItem[]; onHover: (e: EventItem | null) => void }) {
   if (!events.length) return <div className="text-sm text-slate-500">No events in this slot.</div>;
   return (
     <ul className="space-y-3">
-      {events.map((e) => (
-        <li key={e.id} className="rounded-xl border border-slate-200 p-3">
-          <div className="text-sm font-medium">{e.title}</div>
-          <div className="text-xs text-slate-600">{fmtDateTime(e.start)} · {e.loc?.name ?? e.org?.name}</div>
-          <div className="text-xs text-slate-600">{e.org?.name} {e.eventType ? `• ${e.eventType}` : ""}</div>
-          {e.sourceUrl && (<a className="text-xs text-indigo-600 hover:underline" href={e.sourceUrl} target="_blank" rel="noreferrer">Details</a>)}
-        </li>
-      ))}
+      {events.map((e) => {
+        const key = schoolKeyFromEvent(e);
+        const s = SCHOOL_STYLES[key];
+        return (
+          <li
+            key={e.id}
+            className={`rounded-xl border p-3 ${s.bg} ${s.border}`}
+            onMouseEnter={() => onHover(e)}
+            onMouseLeave={() => onHover(null)}
+          >
+            <div className={`text-sm font-medium ${s.text}`}>{e.title}</div>
+            <div className="mt-1 flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-slate-700">{fmtDateTime(e.start)}</span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full ${s.pillBg} ${s.pillText}`}>
+                {e.loc?.name ?? e.org?.name ?? "Unknown location"}
+              </span>
+            </div>
+            <div className="text-xs text-slate-600 mt-1">
+              {e.org?.name} {e.eventType ? `• ${e.eventType}` : ""}
+            </div>
+            {e.sourceUrl && (
+              <a className="text-xs text-indigo-600 hover:underline" href={e.sourceUrl} target="_blank" rel="noreferrer">
+                Details
+              </a>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
