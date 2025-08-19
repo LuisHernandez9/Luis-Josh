@@ -125,6 +125,11 @@ export default function EventPulseNC() {
     openMapForSlot(dayIdx, hour);
   };
 
+  // NEW: clicking a bubble toggles the filter (on -> off)
+  const handleBubbleClick = (t: string) => {
+    setFilters((prev) => ({ ...prev, type: prev.type === t ? "all" : (t as any) }));
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
       {/* Header */}
@@ -170,7 +175,7 @@ export default function EventPulseNC() {
         {/* Left column */}
         <section className="col-span-12 lg:col-span-4">
           <Panel title="Categories">
-            {/* Back row: only visible when a category is active */}
+            {/* Back row: visible when a category is selected */}
             {filters.type !== "all" && (
               <div className="mb-3 flex items-center gap-2">
                 <button
@@ -194,11 +199,11 @@ export default function EventPulseNC() {
               </div>
             )}
 
-            <p className="text-sm text-slate-600 mb-3">Click a bubble to filter. Size shows frequency.</p>
+            <p className="text-sm text-slate-600 mb-3">Click a bubble to filter. Click again to clear. Size shows frequency.</p>
 
             <BubblePanel
               bubbles={bubbleData}
-              onBubbleClick={(t) => setFilters({ ...filters, type: t as any })}
+              onBubbleClick={handleBubbleClick}
               activeType={filters.type}
               mode={view}
             />
