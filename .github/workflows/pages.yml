@@ -25,7 +25,6 @@ jobs:
         with:
           node-version: 20
 
-      # Start clean so npm resolves exactly to pinned versions
       - name: Clean lockfile & cache
         run: |
           rm -f package-lock.json
@@ -35,7 +34,7 @@ jobs:
       - name: Install dependencies
         run: npm install --prefer-online --no-audit --no-fund
 
-      - name: Build (Vite 4)
+      - name: Build
         run: npm run build
 
       - name: Add SPA fallback (404.html)
