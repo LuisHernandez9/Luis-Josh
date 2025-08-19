@@ -20,7 +20,6 @@ function useIsSmallScreen() {
   }, []);
   return isSmall;
 }
-
 function heatColor(level: number, max: number) {
   if (max <= 0) return "#f3f4f6";
   const t = Math.max(0, Math.min(1, level / max));
@@ -52,12 +51,19 @@ const SCHOOL_STYLES: Record<
   other:{ bg: "bg-slate-50",  border: "border-slate-200",  text: "text-slate-800",  pillBg: "bg-slate-100",  pillText: "text-slate-800" },
 };
 
-// --- Map recenter helper ---
+// --- Map helpers ---
 function Recenter({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
     map.setView(center, map.getZoom(), { animate: true });
   }, [center, map]);
+  return null;
+}
+function getEventLatLng(e?: EventItem | null): [number, number] | null {
+  if (!e?.loc) return null;
+  const lat = typeof e.loc.lat === "string" ? parseFloat(e.loc.lat) : e.loc.lat;
+  const lng = typeof e.loc.lng === "string" ? parseFloat(e.loc.lng) : e.loc.lng;
+  if (Number.isFinite(lat) && Number.isFinite(lng)) return [lat as number, lng as number];
   return null;
 }
 
@@ -74,7 +80,6 @@ export default function EventPulseNC() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load live events
   useEffect(() => {
     (async () => {
       try {
@@ -90,7 +95,6 @@ export default function EventPulseNC() {
     })();
   }, []);
 
-  // QoL: ESC clears the active category filter
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -251,11 +255,7 @@ export default function EventPulseNC() {
 
       {/* Map Overlay */}
       {mapOpen && (
-        <MapOverlay
-          title={`NC Map — ${mapTitle}`}
-          events={mapEvents}
-          onClose={() => setMapOpen(false)}
-        />
+        <MapOverlay title={`NC Map — ${mapTitle}`} events={mapEvents} onClose={() => setMapOpen(false)} />
       )}
 
       {/* Footer */}
@@ -275,28 +275,16 @@ function Logo() {
     </div>
   );
 }
-
 function Segmented({
-  value,
-  onChange,
-  options,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: { label: string; value: string }[];
-}) {
+  value, onChange, options
+}: { value: string; onChange: (v: string) => void; options: { label: string; value: string }[] }) {
   return (
     <div role="tablist" aria-label="View toggle" className="flex rounded-xl border border-slate-300 p-1 text-sm bg-white shadow-sm">
       {options.map((o) => {
         const active = o.value === value;
         return (
-          <button
-            key={o.value}
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(o.value)}
-            className={`px-3 py-1.5 rounded-lg ${active ? "bg-indigo-600 text-white" : "text-slate-700 hover:bg-slate-100"}`}
-          >
+          <button key={o.value} role="tab" aria-selected={active} onClick={() => onChange(o.value)}
+            className={`px-3 py-1.5 rounded-lg ${active ? "bg-indigo-600 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
             {o.label}
           </button>
         );
@@ -304,18 +292,9 @@ function Segmented({
     </div>
   );
 }
-
 function Select({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: { label: string; value: string }[];
-  onChange: (v: string) => void;
-}) {
+  label, value, options, onChange
+}: { label: string; value: string; options: { label: string; value: string }[]; onChange: (v: string) => void }) {
   return (
     <label className="inline-flex items-center gap-2 text-sm">
       <span className="sr-only">{label}</span>
@@ -324,16 +303,11 @@ function Select({
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
+        {options.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
       </select>
     </label>
   );
 }
-
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
@@ -345,11 +319,9 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
+// ---------- Bubbles ----------
 function BubblePanel({
-  bubbles,
-  onBubbleClick,
-  activeType,
-  mode,
+  bubbles, onBubbleClick, activeType, mode
 }: {
   bubbles: { type: string; count: number }[];
   onBubbleClick: (t: string) => void;
@@ -382,7 +354,7 @@ function BubblePanel({
                 baseColor,
                 "flex flex-col items-center justify-center",
                 "hover:shadow transition-transform duration-200 ease-out",
-                active ? "ring-2 ring-offset-2 ring-indigo-500" : "",
+                active ? "ring-2 ring-offset-2 ring-indigo-500" : ""
               ].join(" ")}
               style={{ width: CELL, height: CELL, transform: `scale(${scale})` }}
               whileHover={{ scale: scale * 1.04 }}
@@ -398,15 +370,10 @@ function BubblePanel({
   );
 }
 
+// ---------- Heatmap ----------
 function HeatMap({
-  grid,
-  max,
-  onCellRightClick,
-}: {
-  grid: number[][];
-  max: number;
-  onCellRightClick: (e: React.MouseEvent, dayIdx: number, hour: number) => void;
-}) {
+  grid, max, onCellRightClick
+}: { grid: number[][]; max: number; onCellRightClick: (e: React.MouseEvent, dayIdx: number, hour: number) => void }) {
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full border-separate border-spacing-1">
@@ -414,9 +381,7 @@ function HeatMap({
           <tr>
             <th className="w-12 text-left text-xs text-slate-500">&nbsp;</th>
             {Array.from({ length: 24 }).map((_, h) => (
-              <th key={h} className="text-[10px] text-slate-500 font-normal text-center px-1">
-                {h}
-              </th>
+              <th key={h} className="text-[10px] text-slate-500 font-normal text-center px-1">{h}</th>
             ))}
           </tr>
         </thead>
@@ -442,22 +407,19 @@ function HeatMap({
   );
 }
 
-// ---------- Map overlay with hover-to-pin ----------
+// ---------- Map overlay with fixed hover-to-pin ----------
 function MapOverlay({ title, events, onClose }: { title: string; events: EventItem[]; onClose: () => void }) {
-  // Default map center (NC)
   const FALLBACK: [number, number] = [35.5, -79.0];
-
-  // Pick a sensible initial pin: first event with coords or fallback
-  const firstWithLoc = events.find((e) => e.loc?.lat != null && e.loc?.lng != null);
-  const initial: [number, number] =
-    firstWithLoc ? [firstWithLoc.loc!.lat as number, firstWithLoc.loc!.lng as number] : FALLBACK;
+  const firstWithCoords = events.find((e) => getEventLatLng(e));
+  const initial = getEventLatLng(firstWithCoords) ?? FALLBACK;
 
   const [pin, setPin] = useState<[number, number]>(initial);
-  const [activeEvent, setActiveEvent] = useState<EventItem | null>(firstWithLoc ?? null);
+  const [activeEvent, setActiveEvent] = useState<EventItem | null>(firstWithCoords ?? null);
 
   const handleHover = (e: EventItem | null) => {
-    if (e?.loc?.lat != null && e?.loc?.lng != null) {
-      setPin([e.loc.lat, e.loc.lng]);
+    const coords = getEventLatLng(e);
+    if (coords) {
+      setPin(coords);
       setActiveEvent(e);
     }
   };
@@ -506,7 +468,7 @@ function MapOverlay({ title, events, onClose }: { title: string; events: EventIt
   );
 }
 
-// ---------- Color-coded list + hover wiring ----------
+// ---------- Color-coded list + visible hover ----------
 function EventList({ events, onHover }: { events: EventItem[]; onHover: (e: EventItem | null) => void }) {
   if (!events.length) return <div className="text-sm text-slate-500">No events in this slot.</div>;
   return (
@@ -517,9 +479,12 @@ function EventList({ events, onHover }: { events: EventItem[]; onHover: (e: Even
         return (
           <li
             key={e.id}
-            className={`rounded-xl border p-3 ${s.bg} ${s.border}`}
+            className={`rounded-xl border p-3 ${s.bg} ${s.border} transition transform hover:scale-[1.01] hover:ring-2 hover:ring-slate-300 cursor-pointer`}
             onMouseEnter={() => onHover(e)}
             onMouseLeave={() => onHover(null)}
+            onFocus={() => onHover(e)}
+            onBlur={() => onHover(null)}
+            tabIndex={0}
           >
             <div className={`text-sm font-medium ${s.text}`}>{e.title}</div>
             <div className="mt-1 flex items-center gap-2 flex-wrap">
