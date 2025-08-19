@@ -25,26 +25,29 @@ jobs:
         with:
           node-version: 20
 
-      # If a stale lockfile exists but you edit on GitHub, remove it so npm install resolves fresh
-      - name: Remove lockfile if present
+      # Clean stale lock & cache to avoid npm/rollup optional deps bug
+      - name: Clean lockfile & npm cache
         run: |
-          if [ -f package-lock.json ]; then
-            echo "Removing out-of-sync package-lock.json"
-            rm -f package-lock.json
+          rm -f package-lock.json
+          npm cache clean --force || true
+
+      - name: First install
+        run: npm install --prefer-online --no-audit --no-fund
+
+      # If rollup's native optional package didn't land (npm bug), reinstall once
+      - name: Verify rollup optional dep; reinstall if missing
+        run: |
+          if [ ! -d node_modules/@rollup ] || ! ls node_modules/@rollup 2>/dev/null | grep -q "rollup-"; then
+            echo "Rollup optional native package missing. Reinstalling once..."
+            rm -rf node_modules package-lock.json
+            npm cache clean --force || true
+            npm install --prefer-online --no-audit --no-fund
           fi
 
-      - name: Install dependencies
-        run: npm install
-
-      # 🔧 Call Vite via Node to avoid executable permission issues
+      # Build Vite via Node to avoid CLI executable permission hiccups
       - name: Build (via Node entry)
         run: |
-          if [ -f ./node_modules/vite/bin/vite.js ]; then
-            node ./node_modules/vite/bin/vite.js build
-          else
-            # Fallback if vite wasn't installed for some reason
-            npx --yes vite build
-          fi
+          node ./node_modules/vite/bin/vite.js build
 
       - name: Add SPA fallback (404.html)
         run: cp dist/index.html dist/404.html
