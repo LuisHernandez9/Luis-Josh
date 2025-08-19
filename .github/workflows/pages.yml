@@ -14,10 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Force Rollup to use the JS implementation (not the native optional binary)
   ROLLUP_DISABLE_NATIVE: "1"
-  # Make sure we’re installing to the repo root (change if your app is in a subfolder)
-  APP_DIR: "."
 
 jobs:
   build:
@@ -31,31 +28,28 @@ jobs:
         with:
           node-version: 20
 
-      # Clean any stale lockfile so npm doesn't try to enforce out-of-sync deps
-      - name: Clean lockfile & cache (safe)
-        working-directory: ${{ env.APP_DIR }}
+      # Start clean so npm resolves using overrides
+      - name: Clean lockfile & cache
         run: |
           rm -f package-lock.json
+          rm -rf node_modules
           npm cache clean --force || true
 
-      # Install WITHOUT optional deps (skips platform-specific @rollup/rollup-*)
+      # Install WITHOUT optional deps (skips @rollup/rollup-* entirely)
       - name: Install dependencies (no optional)
-        working-directory: ${{ env.APP_DIR }}
         run: npm install --no-optional --prefer-online --no-audit --no-fund
 
-      # Build Vite via Node entry (bypass executable bit)
+      # Build via Node (avoid CLI exec-bit issues)
       - name: Build (Vite via Node)
-        working-directory: ${{ env.APP_DIR }}
         run: node ./node_modules/vite/bin/vite.js build
 
       - name: Add SPA fallback (404.html)
-        working-directory: ${{ env.APP_DIR }}
         run: cp dist/index.html dist/404.html
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ${{ env.APP_DIR }}/dist
+          path: ./dist
 
   deploy:
     needs: build
