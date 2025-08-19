@@ -2,7 +2,7 @@ name: Deploy Vite to GitHub Pages
 
 on:
   push:
-    branches: [ luis_branch ]  # ← deploys whenever you push to luis_branch
+    branches: [ luis_branch ]  # deploys from your working branch
 
 permissions:
   contents: read
@@ -13,21 +13,58 @@ concurrency:
   group: "pages"
   cancel-in-progress: true
 
+env:
+  # If your app is NOT in the repo root, set this to the subfolder (e.g., app, web, frontend)
+  APP_DIR: .
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install
-      - run: npm run build
-      # SPA fallback so refresh on deep links doesn't 404
-      - run: cp dist/index.html dist/404.html
-      - uses: actions/upload-pages-artifact@v3
+
+      - name: Show Node/npm versions
+        run: |
+          node -v
+          npm -v
+
+      - name: Verify package.json location
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          echo "Listing files in $PWD"
+          ls -la
+          test -f package.json || (echo "::error ::No package.json found in $PWD. If your app lives in a subfolder, set APP_DIR accordingly in the workflow." && exit 1)
+
+      - name: Install dependencies (ci if lockfile, else install)
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Build
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          npm run build || npx vite build
+
+      - name: Ensure dist exists & add SPA fallback
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          test -d dist || (echo "::error ::dist folder not found after build. Check your build script/working directory." && exit 1)
+          cp dist/index.html dist/404.html
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          path: ./dist
+          path: ${{ env.APP_DIR }}/dist
 
   deploy:
     needs: build
