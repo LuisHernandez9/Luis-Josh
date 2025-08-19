@@ -2,5 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Optional: basic body color so Tailwind loads visibly */
 html, body, #root { height: 100%; }
-body { @apply bg-slate-50; }
+body { @apply bg-slate-50 text-slate-900; }
